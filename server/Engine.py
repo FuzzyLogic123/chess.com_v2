@@ -24,7 +24,7 @@ class Engine:
             "Slow Mover": 0,
             "Ponder": 'true',
             "Contempt": 100,
-            "Skill Level": 4
+            "Skill Level": 6
             })
 
     def get_move(self, fen, time_remaining):
@@ -50,6 +50,8 @@ class Engine:
         delay = self.get_delay(time_remaining)
         if not is_capture: # if it is not a recapture
             time.sleep(delay)
+        elif time_remaining < 5000:
+            time.sleep(0.2)
         else:
             time.sleep(max(delay, 0.7)) # so people don't get salty when I take their free queen immediately
 
