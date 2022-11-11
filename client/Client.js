@@ -1,14 +1,17 @@
 "use strict"
 
+const axios = require('axios');
 const credentials = require('./credentials.js');
+const ghostCursor = require("ghost-cursor");
+const { installMouseHelper } = require('./install-mouse-helper');
+
 
 class Client {
     constructor() {
         this._page = null;
-        this._gameActive = false;
         this._castling_rights = "KQkq";
         this._player_colour = "w";
-        // this._waitingForNewGame = true;
+        this._cursor = null;
     }
 
     async launchBrowser() {
@@ -24,13 +27,16 @@ class Client {
         const browser = await puppeteer.launch({
             headless: false,
         });
-        this._page = await browser.newPage()
+        this._page = await browser.newPage();
+        await installMouseHelper(this._page);
+        this._cursor = ghostCursor.createCursor(this._page);
+
         await this._page.goto('https://www.chess.com/login_and_go?returnUrl=https://www.chess.com/play/online/new')
 
         await this.login();
-        await this._page.click("#login");
+        // await this._page.click("#login");
+        this._cursor.click("#login");
 
-        // console.log(await this.get_fen());
     }
 
     async login() {
@@ -50,8 +56,20 @@ class Client {
         await this._page.waitForSelector(your_turn_selector, { timeout: 0 });
     }
 
-    async initialise_new_game() {
-        this._gameActive = true;
+    async wait_for_opponents_turn() {
+        let their_turn_selector = ".board-layout-top .clock-player-turn";
+        await this._page.waitForSelector(their_turn_selector, { timeout: 0 });
+    }
+
+    // async is_game_over() {
+    //     const new_game_buttons = await this._page.$$(".live-game-buttons-game-over");
+    //     const game_result = await this._page.$$(".game-result");
+    //     const game_over_modal = await this._page.$$(".game-over-modal-content");
+    //     console.log("is game over", new_game_buttons.length > 0 || game_result.length > 0 || game_over_modal.length > 0);
+    //     return new_game_buttons.length > 0 || game_result.length > 0 || game_over_modal.length > 0;
+    // }
+
+    async updatePlayerColour() {
 
         const board = await this._page.$(".board");
         let boardClass = await this._getClassName(board);
@@ -59,6 +77,25 @@ class Client {
         this._player_colour = boardClass.includes("flipped") ? "b" : "w";
         console.log(this._player_colour);
 
+    }
+
+    async get_time_remaining() {
+        const clock = await this._page.$(".player-bottom .clock-component");
+        let ms;
+        let time_in_ms = 0
+        let time_remaining = await clock.getProperty("textContent");
+        time_remaining = await time_remaining.jsonValue();
+
+        let [minutes, seconds] = time_remaining.split(":");
+
+        time_in_ms += parseInt(minutes) * 1000 * 60
+
+        if (seconds.includes(".")) {
+            [seconds, ms] = seconds.split(".")
+            time_in_ms += parseInt(ms) * 100
+        }
+        time_in_ms += parseInt(seconds) * 1000
+        return time_in_ms
     }
 
     async get_fen() {
@@ -157,13 +194,11 @@ class Client {
     async _get_piece_list() {
         var class_names, location, piece_colour, piece_info, piece_list, piece_type, pieces_DOM_elements;
         pieces_DOM_elements = await this._page.$$(".board .piece");
-        console.log(pieces_DOM_elements)
         piece_list = [];
 
         for (var piece, _pj_c = 0, _pj_a = pieces_DOM_elements, _pj_b = _pj_a.length; _pj_c < _pj_b; _pj_c += 1) {
             piece = _pj_a[_pj_c];
             class_names = (await this._getClassName(piece)).split(" ");
-            console.log(class_names);
             if (class_names.length !== 3) {
                 return await this._get_piece_list();
             }
@@ -192,8 +227,6 @@ class Client {
         piece_list.sort((piece1, piece2) => Number.parseInt(piece1["location"][0] - Number.parseInt(piece2["location"][0])));
         piece_list.sort((piece1, piece2) => Number.parseInt(piece2["location"][1] - Number.parseInt(piece1["location"][1])));
 
-
-        console.log(piece_list);
         return piece_list;
     }
 
@@ -207,10 +240,10 @@ class Client {
 
         // if you're black - reverse the board aka 9 - square number
         if (this._player_colour == "b") {
-            start = this.setCharAt(start, 0, 9 - Number(start[0]))
-            start = this.setCharAt(start, 1, 9 - Number(start[1]))
-            end = this.setCharAt(end, 0, 9 - Number(end[0]))
-            end = this.setCharAt(end, 0, 9 - Number(end[1]))
+            start = this.setCharAt(start, 0, 9 - Number(start[0]));
+            start = this.setCharAt(start, 1, 9 - Number(start[1]));
+            end = this.setCharAt(end, 0, 9 - Number(end[0]));
+            end = this.setCharAt(end, 1, 9 - Number(end[1]));
         }
 
         const piece = await this._page.waitForSelector(".piece");
@@ -230,16 +263,65 @@ class Client {
         const x_offset = boardRect["x"];
         const y_offset = boardRect["y"] + boardRect["height"];
 
-        const client_x_start = square_width * (Number(start[0]) - 1 + 0.5) + x_offset;
-        const client_y_start = - square_width * (Number(start[1]) - 1 + 0.5) + y_offset;
-        const client_x_end = square_width * (Number(end[0]) - 1 + 0.5) + x_offset;
-        const client_y_end = - square_width * (Number(end[1]) - 1 + 0.5) + y_offset;
+        let client_x_start = square_width * (Number(start[0]) - 1 + 0.5) + x_offset;
+        let client_y_start = - square_width * (Number(start[1]) - 1 + 0.5) + y_offset;
+        let client_x_end = square_width * (Number(end[0]) - 1 + 0.5) + x_offset;
+        let client_y_end = - square_width * (Number(end[1]) - 1 + 0.5) + y_offset;
 
-        console.log(client_x_start);
-        console.log(client_y_start);
+        const height = pieceRect["height"];
+        // randomise click position
+        client_x_start += this.randomIntFromInterval(-height / 3, height / 3);
+        client_x_end += this.randomIntFromInterval(-height / 3, height / 3);
+        client_y_start += this.randomIntFromInterval(-height / 3, height / 3);
+        client_y_end += this.randomIntFromInterval(-height / 3, height / 3);
+
+        // await this._cursor.moveTo({
+        //     x: client_x_start,
+        //     y: client_y_start
+        // });
+        // this._page.mouse.down();
+        // this._page.mouse.up();
+
+        // await this._cursor.moveTo({
+        //     x: client_x_end,
+        //     y: client_y_end
+        // })
+        // this._page.mouse.down();
+        // this._page.mouse.up();
 
         await this._page.mouse.click(client_x_start, client_y_start);
         await this._page.mouse.click(client_x_end, client_y_end);
+    }
+
+    randomIntFromInterval(min, max) { // min and max included 
+        return Math.floor(Math.random() * (max - min + 1) + min)
+    }
+
+    sleep(ms) {
+        return new Promise((resolve) => {
+            setTimeout(resolve, ms);
+        });
+    }
+
+    async playMove() {
+        const fen = await this.get_fen();
+        const time_remaining = await this.get_time_remaining();
+        console.log(time_remaining);
+        // const fen = "rnbqkbnr/ppp4p/3p1p2/6P1/4Pp2/2N2N2/PPPP2P1/R1BQKB1R b KQkq - 0 6";
+
+        const response = await axios.get(`http://127.0.0.1:8000`, {
+            params: {
+                fen: fen,
+                time_remaining: time_remaining
+            }
+        });
+        const bestMove = response.data.recommended_move;
+        console.log(bestMove);
+        if (bestMove == null) {
+            this.sleep(3000);
+            return this.playMove();
+        }
+        await this.move(bestMove);
     }
 
     setCharAt(str, index, chr) {
@@ -248,8 +330,5 @@ class Client {
     }
 
 }
-
-const client = new Client();
-console.log(client.get_fen());
 
 module.exports = { Client };
