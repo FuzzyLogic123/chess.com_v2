@@ -77,14 +77,6 @@ class Client {
         }
     }
 
-    // async is_game_over() {
-    //     const new_game_buttons = await this._page.$$(".live-game-buttons-game-over");
-    //     const game_result = await this._page.$$(".game-result");
-    //     const game_over_modal = await this._page.$$(".game-over-modal-content");
-    //     console.log("is game over", new_game_buttons.length > 0 || game_result.length > 0 || game_over_modal.length > 0);
-    //     return new_game_buttons.length > 0 || game_result.length > 0 || game_over_modal.length > 0;
-    // }
-
     async updatePlayerColour() {
 
         const board = await this._page.$(".board");
@@ -132,11 +124,9 @@ class Client {
                 if (piece_list[i]["type"] === "k") {
                     if (piece_list[i]["colour"] === "w" && piece_list[i]["location"] !== "51") {
                         this._castling_rights = this._castling_rights.split("KQ").join("");
-                        console.log("white king moved");
                     } else {
                         if (piece_list[i]["colour"] === "b" && piece_list[i]["location"] !== "58") {
                             this._castling_rights = this._castling_rights.split("kq").join("");
-                            console.log("black king moved")
                         }
                     }
                 }
@@ -145,11 +135,9 @@ class Client {
                     if (rank === 1) {
                         if (file === 1) {
                             this._castling_rights = this._castling_rights.split("Q").join("");
-                            console.log("Queenside white lost")
                         } else {
                             if (file === 8) {
                                 this._castling_rights = this._castling_rights.split("K").join("");
-                                console.log("kingside white lost")
 
                             }
                         }
@@ -158,11 +146,9 @@ class Client {
                     if (rank === 8) {
                         if (file === 1) {
                             this._castling_rights = this._castling_rights.split("q").join("");
-                            console.log("Queenside black lost")
                         } else {
                             if (file === 8) {
                                 this._castling_rights = this._castling_rights.split("k").join("");
-                            console.log("kingside black lost")
 
                             }
                         }
@@ -374,7 +360,6 @@ class Client {
 
             for (let i = 0; i < best_line.length; i++) {
                 const bestMove = best_line[i];
-                console.log("making premove");
                 await this.move(bestMove);
             }
         }
