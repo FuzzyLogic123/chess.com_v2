@@ -91,7 +91,6 @@ class Client {
         let boardClass = await this._getClassName(board);
 
         this._player_colour = boardClass.includes("flipped") ? "b" : "w";
-        console.log(this._player_colour);
 
     }
 
@@ -133,9 +132,11 @@ class Client {
                 if (piece_list[i]["type"] === "k") {
                     if (piece_list[i]["colour"] === "w" && piece_list[i]["location"] !== "51") {
                         this._castling_rights = this._castling_rights.split("KQ").join("");
+                        console.log("white king moved");
                     } else {
                         if (piece_list[i]["colour"] === "b" && piece_list[i]["location"] !== "58") {
                             this._castling_rights = this._castling_rights.split("kq").join("");
+                            console.log("black king moved")
                         }
                     }
                 }
@@ -144,9 +145,12 @@ class Client {
                     if (rank === 1) {
                         if (file === 1) {
                             this._castling_rights = this._castling_rights.split("Q").join("");
+                            console.log("Queenside white lost")
                         } else {
                             if (file === 8) {
                                 this._castling_rights = this._castling_rights.split("K").join("");
+                                console.log("kingside white lost")
+
                             }
                         }
                     }
@@ -154,9 +158,12 @@ class Client {
                     if (rank === 8) {
                         if (file === 1) {
                             this._castling_rights = this._castling_rights.split("q").join("");
+                            console.log("Queenside black lost")
                         } else {
                             if (file === 8) {
                                 this._castling_rights = this._castling_rights.split("k").join("");
+                            console.log("kingside black lost")
+
                             }
                         }
                     }
@@ -192,8 +199,13 @@ class Client {
             }
         }
 
+        if (fen.includes("rnbqkbnr/pppppppp")) { // if the black pieces have not moved that means its a new game
+            this._castling_rights = "KQkq";
+        }
+
         fen += " ";
         fen += this._player_colour;
+
 
         if (this._castling_rights) {
             fen += ` ${this._castling_rights}`;
@@ -310,7 +322,7 @@ class Client {
         else if (new_live_game_buttons.length !== 0) {
             await this._page.$$eval(".live-game-buttons-game-over button", buttons => buttons.map(button => {
                 const span = button.querySelector("span");
-                if (span && (span.className.includes("plus") || span.className.includes("checkmark)"))) { // check that it hasn't been pressed
+                if (span && (span.className.includes("plus") || span.className.includes("checkmark"))) { // check that it hasn't been pressed
                     button.click();
                 }
             }));
@@ -342,14 +354,12 @@ class Client {
             return false;
         });
 
-        console.log(is_premoves);
-
         if (is_premoves) { // premoves in place
-            console.log("premoves detected");
             return
         }
 
-        if (time_remaining < 60000) { // try premoving
+        const PREMOVE_TIME_ACTIVATE = 60000
+        if (time_remaining < PREMOVE_TIME_ACTIVATE) { // try premoving
             const response = await axios.get(`http://127.0.0.1:8000/premove`, {
                 params: {
                     fen: fen,
@@ -383,7 +393,6 @@ class Client {
                 this.sleep(3000);
                 return this.playMove(attempts_remaining - 1);
             }
-            console.log("normal move")
             await this.move(bestMove);
         }
     }

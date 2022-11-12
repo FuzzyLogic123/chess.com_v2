@@ -1,42 +1,27 @@
 import random
 import time
+import chess
+import chess.engine
 from rich.pretty import pprint
-from stockfish import Stockfish
 from rich.console import Console
 import chime
 
 console = Console()
 
+
 class Engine:
     def __init__(self):
         self._move_counter = 0
-        self._stockfish = Stockfish(
-            depth=10,
-            parameters={
-            "Slow Mover": 0,
-            "Ponder": 'true',
-            "Contempt": 100,
-            "Skill Level": 3
-            })
-        self._stockfish_smart = Stockfish(
-            depth=10,
-            parameters={
-            "Slow Mover": 0,
-            "Ponder": 'true',
-            "Contempt": 100,
-            "Skill Level": 6
-            })
+        self.engine = chess.engine.SimpleEngine.popen_uci("/usr/games/stockfish")
+        self.smart_level = 6
+        self.dumb_level = 3
 
     def get_move(self, fen, time_remaining):
-        self._stockfish.set_fen_position(fen)
-        self._stockfish_smart.set_fen_position(fen)
-        if not self._stockfish.is_fen_valid(fen):
-            console.print(fen, style="red")
-            return None
+        board = self.create_board(fen)
 
-        best_move, is_capture = self.get_best_move()
+        best_move, is_capture = self.get_best_move(board)
 
-        actual_best_move, is_actual_best_move_capture = self.get_best_move(True)
+        actual_best_move, is_actual_best_move_capture = self.get_best_move(board, True)
 
         if is_actual_best_move_capture:
             if actual_best_move != best_move:
@@ -58,13 +43,20 @@ class Engine:
         self._move_counter += 1
         return best_move
 
-    def get_best_move(self, is_smart=False):
+    def get_best_move(self, board, is_smart=False):
+        is_capture = False
         if is_smart:
-            best_move = self._stockfish_smart.get_best_move_time(50)
+            self.engine.configure({"Skill Level": self.smart_level})
+            info = self.engine.analyse(board, chess.engine.Limit(depth=10))
+            best_move = info["pv"][0]
         else:
-            best_move = self._stockfish.get_best_move_time(50)
-        is_capture = self._stockfish.will_move_be_a_capture(best_move) == Stockfish.Capture.DIRECT_CAPTURE
-        return best_move, is_capture
+            self.engine.configure({"Skill Level": self.dumb_level})
+            info = self.engine.analyse(board, chess.engine.Limit(depth=10))
+            best_move = info["pv"][0]
+
+        best_move_uci = best_move.uci()
+        is_capture = board.is_capture(best_move)
+        return best_move_uci, is_capture
 
     def get_delay(self, time_remaining):
         # if its a capture and every other move loses
@@ -81,14 +73,30 @@ class Engine:
     def set_move_count(self, new_move_count):
         self._move_counter = new_move_count
 
-    def get_premove(self, fen):
-        self._stockfish_smart.set_fen_position(fen)
-        if not self._stockfish.is_fen_valid(fen):
-            console.print(fen, style="red")
+    def create_board(self, fen):
+        print(fen)
+        try:
+            board = chess.Board(fen)
+            if not board.is_valid():
+                console.print("fen invalid", style="salmon1")
+            print("white", board.has_castling_rights(chess.WHITE))
+            print("black", board.has_castling_rights(chess.BLACK))
+            return board
+        except ValueError:
             return None
 
-        best_moves =  self._stockfish_smart.get_top_moves(3)
-        moves = [move["Move"] for move in best_moves]
+    def get_premove(self, fen):
+        board = self.create_board(fen)
+        self.engine.configure({"Skill Level": self.smart_level})
+        info = self.engine.analyse(board, chess.engine.Limit(depth=10))
+
+        principle_variation = info.get("pv")
+        if not principle_variation:
+            return None
+        
+        moves = [ move.uci() for i, move in enumerate(principle_variation) if i % 2 == 0]
+        moves = moves[:3]
         print(moves)
+
         return moves
 
