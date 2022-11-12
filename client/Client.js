@@ -53,12 +53,28 @@ class Client {
 
     async wait_for_turn() {
         let your_turn_selector = ".board-layout-bottom .clock-player-turn";
-        await this._page.waitForSelector(your_turn_selector, { timeout: 0 });
+        try {
+            await this._page.waitForSelector(your_turn_selector, { timeout: 3000 });
+            return true;
+        }
+        catch {
+            return false;
+        }
+    }
+
+    async block_until_turn() {
+        await this._page.waitForSelector(".board-layout-bottom .clock-player-turn", { timeout: 0 });
     }
 
     async wait_for_opponents_turn() {
-        let their_turn_selector = ".board-layout-top .clock-player-turn";
-        await this._page.waitForSelector(their_turn_selector, { timeout: 0 });
+        try {
+            let their_turn_selector = ".board-layout-top .clock-player-turn";
+            await this._page.waitForSelector(their_turn_selector, { timeout: 3000 });
+            return true;
+        }
+        catch {
+            return false;
+        }
     }
 
     // async is_game_over() {
@@ -275,20 +291,6 @@ class Client {
         client_y_start += this.randomIntFromInterval(-height / 3, height / 3);
         client_y_end += this.randomIntFromInterval(-height / 3, height / 3);
 
-        // await this._cursor.moveTo({
-        //     x: client_x_start,
-        //     y: client_y_start
-        // });
-        // this._page.mouse.down();
-        // this._page.mouse.up();
-
-        // await this._cursor.moveTo({
-        //     x: client_x_end,
-        //     y: client_y_end
-        // })
-        // this._page.mouse.down();
-        // this._page.mouse.up();
-
         await this._page.mouse.click(client_x_start, client_y_start);
         await this._page.mouse.click(client_x_end, client_y_end);
     }
@@ -297,32 +299,95 @@ class Client {
         return Math.floor(Math.random() * (max - min + 1) + min)
     }
 
+    async next_game() {
+        const next_game_button = await this._page.$(".game-over-arena-button");
+        const new_live_game_buttons = await this._page.$$(".live-game-buttons-game-over button");
+
+        if (next_game_button) {
+            this._page.click(".game-over-arena-button");
+            return true;
+        }
+        else if (new_live_game_buttons.length !== 0) {
+            await this._page.$$eval(".live-game-buttons-game-over button", buttons => buttons.map(button => {
+                const span = button.querySelector("span");
+                if (span && (span.className.includes("plus") || span.className.includes("checkmark)"))) { // check that it hasn't been pressed
+                    button.click();
+                }
+            }));
+            return true;
+        }
+        return false;
+    }
+
     sleep(ms) {
         return new Promise((resolve) => {
             setTimeout(resolve, ms);
         });
     }
 
-    async playMove() {
+    async playMove(attempts_remaining = 5) {
+        if (attempts_remaining === 0) {
+            return;
+        }
         const fen = await this.get_fen();
         const time_remaining = await this.get_time_remaining();
         console.log(time_remaining);
-        // const fen = "rnbqkbnr/ppp4p/3p1p2/6P1/4Pp2/2N2N2/PPPP2P1/R1BQKB1R b KQkq - 0 6";
 
-        const response = await axios.get(`http://127.0.0.1:8000`, {
-            params: {
-                fen: fen,
-                time_remaining: time_remaining
+        const is_premoves = await this._page.$$eval('.highlight', highlights => {
+            for (let highlight in highlights) {
+                if (highlight.style?.backgroundColor === "rgb(244, 42, 50)") {
+                    return true;
+                }
             }
+            return false;
         });
-        const bestMove = response.data.recommended_move;
-        console.log(bestMove);
-        if (bestMove == null) {
-            this.sleep(3000);
-            return this.playMove();
+
+        console.log(is_premoves);
+
+        if (is_premoves) { // premoves in place
+            console.log("premoves detected");
+            return
         }
-        await this.move(bestMove);
+
+        if (time_remaining < 60000) { // try premoving
+            const response = await axios.get(`http://127.0.0.1:8000/premove`, {
+                params: {
+                    fen: fen,
+                }
+            });
+
+            const best_line = response.data.premoves;
+            if (best_line == null) {
+                this.sleep(3000);
+                return this.playMove(attempts_remaining - 1);
+            }
+
+            for (let i = 0; i < best_line.length; i++) {
+                const bestMove = best_line[i];
+                console.log("making premove");
+                await this.move(bestMove);
+            }
+        }
+        else {
+            // const fen = "rnbqkbnr/ppp4p/3p1p2/6P1/4Pp2/2N2N2/PPPP2P1/R1BQKB1R b KQkq - 0 6";
+
+            const response = await axios.get(`http://127.0.0.1:8000`, {
+                params: {
+                    fen: fen,
+                    time_remaining: time_remaining
+                }
+            });
+            const bestMove = response.data.recommended_move;
+            console.log(bestMove);
+            if (bestMove == null) {
+                this.sleep(3000);
+                return this.playMove(attempts_remaining - 1);
+            }
+            console.log("normal move")
+            await this.move(bestMove);
+        }
     }
+
 
     setCharAt(str, index, chr) {
         if (index > str.length - 1) return str;

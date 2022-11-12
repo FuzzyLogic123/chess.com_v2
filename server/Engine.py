@@ -16,7 +16,7 @@ class Engine:
             "Slow Mover": 0,
             "Ponder": 'true',
             "Contempt": 100,
-            "Skill Level": 2
+            "Skill Level": 3
             })
         self._stockfish_smart = Stockfish(
             depth=10,
@@ -70,7 +70,7 @@ class Engine:
         # if its a capture and every other move loses
         BULLET_GAME_TIME = 60000
         if self._move_counter < 5:
-            time_factor = 0.7
+            time_factor = 0.3
         else:
             time_factor = 2.5
 
@@ -80,3 +80,15 @@ class Engine:
 
     def set_move_count(self, new_move_count):
         self._move_counter = new_move_count
+
+    def get_premove(self, fen):
+        self._stockfish_smart.set_fen_position(fen)
+        if not self._stockfish.is_fen_valid(fen):
+            console.print(fen, style="red")
+            return None
+
+        best_moves =  self._stockfish_smart.get_top_moves(3)
+        moves = [move["Move"] for move in best_moves]
+        print(moves)
+        return moves
+
