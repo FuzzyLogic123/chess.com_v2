@@ -68,11 +68,11 @@ class Engine:
         if self._move_counter < 5:
             time_factor = 0.3
         else:
-            time_factor = 4
+            time_factor = 2.5
 
         delay = random.random() * time_factor * (time_remaining / self._BULLET_GAME_TIME)
 
-        if time_remaining < 7000:
+        if time_remaining < 13000:
             return 0
 
         if is_capture: # delays all captures

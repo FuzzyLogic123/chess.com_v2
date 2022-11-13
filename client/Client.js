@@ -351,7 +351,7 @@ class Client {
             return
         }
 
-        const PREMOVE_TIME_ACTIVATE = 3000;
+        const PREMOVE_TIME_ACTIVATE = 4000;
         const PREMOVES_IN_ADVANCE = 5
         if (time_remaining < PREMOVE_TIME_ACTIVATE) { // try premoving
             const response = await axios.get(`http://127.0.0.1:8000/premove`, {
