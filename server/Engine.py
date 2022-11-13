@@ -8,16 +8,21 @@ import chime
 
 console = Console()
 
-
 class Engine:
     def __init__(self):
+        self.stockfish_path = "/usr/games/stockfish"
         self._move_counter = 0
-        self.engine = chess.engine.SimpleEngine.popen_uci("/usr/games/stockfish")
-        self.smart_level = 6
         self.dumb_level = 3
+        self.smart_level = 10
+        self._BULLET_GAME_TIME = 60000
 
     def get_move(self, fen, time_remaining):
+        if self._BULLET_GAME_TIME - time_remaining < 1000: # if its a new game reset the move counter
+            self._move_counter = 0
+
         board = self.create_board(fen)
+        if not board:
+            return
 
         best_move, is_capture = self.get_best_move(board)
 
@@ -30,13 +35,8 @@ class Engine:
         if time_remaining < 5000: # if there is really low time start playing better
             best_move = actual_best_move
 
-        delay = self.get_delay(time_remaining)
-        if not is_capture: # if it is not a recapture
-            time.sleep(delay)
-        elif time_remaining < 5000:
-            time.sleep(0.2)
-        else:
-            time.sleep(max(delay, 0.7)) # so people don't get salty when I take their free queen immediately
+        delay = self.get_delay(time_remaining, is_capture)
+        time.sleep(delay)
 
         self._move_counter += 1
         return best_move
@@ -44,57 +44,72 @@ class Engine:
     def get_best_move(self, board, is_smart=False):
         is_capture = False
         if is_smart:
-            self.engine.configure({"Skill Level": self.smart_level})
-            info = self.engine.analyse(board, chess.engine.Limit(depth=10))
-            best_move = info["pv"][0]
+            engine = chess.engine.SimpleEngine.popen_uci(self.stockfish_path)
+            engine.configure({"Skill Level": self.smart_level})
+            result = engine.play(board, chess.engine.Limit(depth=10))
+            best_move = result.move
+            engine.close()
         else:
-            self.engine.configure({"Skill Level": self.dumb_level})
-            info = self.engine.analyse(board, chess.engine.Limit(depth=10))
-            best_move = info["pv"][0]
+            engine = chess.engine.SimpleEngine.popen_uci(self.stockfish_path)
+            engine.configure({"Skill Level": self.dumb_level})
+            result = engine.play(board, chess.engine.Limit(depth=10))
+            best_move = result.move
+            engine.close()
 
-        best_move_uci = best_move.uci()
-        is_capture = board.is_capture(best_move)
+        if best_move:
+            best_move_uci = best_move.uci()
+            is_capture = board.is_capture(best_move)
+        else:
+            best_move_uci = None
+            is_capture = None
         return best_move_uci, is_capture
 
-    def get_delay(self, time_remaining):
-        # if its a capture and every other move loses
-        BULLET_GAME_TIME = 60000
+    def get_delay(self, time_remaining, is_capture):
         if self._move_counter < 5:
             time_factor = 0.3
         else:
-            time_factor = 2.5
+            time_factor = 4
 
-        if time_remaining < 10000:
+        delay = random.random() * time_factor * (time_remaining / self._BULLET_GAME_TIME)
+
+        if time_remaining < 7000:
             return 0
-        return random.random() * time_factor * (time_remaining / BULLET_GAME_TIME)
+
+        if is_capture: # delays all captures
+            return max(delay, 0.7)
+
+        return delay
 
     def set_move_count(self, new_move_count):
         self._move_counter = new_move_count
 
     def create_board(self, fen):
-        print(fen)
         try:
             board = chess.Board(fen)
             if not board.is_valid():
                 console.print("fen invalid", style="salmon1")
+                console.print(fen)
                 chime.error()
+                return None
             return board
         except ValueError:
             return None
 
-    def get_premove(self, fen):
+    def get_premove(self, fen, moves_in_advance):
         board = self.create_board(fen)
-        self.engine.configure({"Skill Level": self.smart_level})
-        info = self.engine.analyse(board, chess.engine.Limit(depth=10))
+        if not board:
+            return
+
+        engine = chess.engine.SimpleEngine.popen_uci(self.stockfish_path)
+        info = engine.analyse(board, chess.engine.Limit(depth=10))
+        engine.close()
 
         principle_variation = info.get("pv")
         if not principle_variation:
             return None
         
         moves = [ move.uci() for i, move in enumerate(principle_variation) if i % 2 == 0]
-        moves = moves[:3]
-        print(moves)
-
+        moves = moves[:moves_in_advance]
         return moves
 
     def get_castling_rights(self, fen):

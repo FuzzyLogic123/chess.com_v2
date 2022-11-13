@@ -54,7 +54,7 @@ class Client {
     async wait_for_turn() {
         let your_turn_selector = ".board-layout-bottom .clock-player-turn";
         try {
-            await this._page.waitForSelector(your_turn_selector, { timeout: 3000 });
+            await this._page.waitForSelector(your_turn_selector, { timeout: 5000 });
             return true;
         }
         catch {
@@ -69,7 +69,7 @@ class Client {
     async wait_for_opponents_turn() {
         try {
             let their_turn_selector = ".board-layout-top .clock-player-turn";
-            await this._page.waitForSelector(their_turn_selector, { timeout: 3000 });
+            await this._page.waitForSelector(their_turn_selector, { timeout: 100 });
             return true;
         }
         catch {
@@ -337,7 +337,6 @@ class Client {
         }
         const fen = await this.get_fen();
         const time_remaining = await this.get_time_remaining();
-        console.log(time_remaining);
 
         const is_premoves = await this._page.$$eval('.highlight', highlights => {
             for (let highlight in highlights) {
@@ -352,11 +351,13 @@ class Client {
             return
         }
 
-        const PREMOVE_TIME_ACTIVATE = 5000
+        const PREMOVE_TIME_ACTIVATE = 3000;
+        const PREMOVES_IN_ADVANCE = 5
         if (time_remaining < PREMOVE_TIME_ACTIVATE) { // try premoving
             const response = await axios.get(`http://127.0.0.1:8000/premove`, {
                 params: {
                     fen: fen,
+                    moves_in_advance: PREMOVES_IN_ADVANCE
                 }
             });
 
@@ -377,7 +378,7 @@ class Client {
             const response = await axios.get(`http://127.0.0.1:8000`, {
                 params: {
                     fen: fen,
-                    time_remaining: time_remaining
+                    time_remaining: time_remaining,
                 }
             });
             const bestMove = response.data.recommended_move;

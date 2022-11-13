@@ -14,13 +14,18 @@ class Main {
     async startPlaying() {
         await this._client.block_until_turn();
         while (true) {
+            let matchmaking = false;
             let is_my_turn = false;
-            while (!is_my_turn) {
+            while (!is_my_turn && !matchmaking) {
                 if (this._auto_next_game) {
-                    await this._client.next_game();
+                    matchmaking = await this._client.next_game();
                 }
                 is_my_turn = await this._client.wait_for_turn();
                 await this._client.sleep(100);
+            }
+
+            if (matchmaking) {
+                continue;
             }
 
             await this._client.updatePlayerColour();

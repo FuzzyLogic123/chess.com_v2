@@ -13,8 +13,8 @@ def read_root(fen: str, time_remaining: int):
         }
 
 @app.get("/premove")
-def read_premove(fen: str):
-    moves = engine.get_premove(fen)
+def read_premove(fen: str, moves_in_advance: int):
+    moves = engine.get_premove(fen, moves_in_advance)
     return {
         "premoves": moves
     }
