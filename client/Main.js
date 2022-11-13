@@ -3,6 +3,7 @@ const { Client } = require("./Client.js");
 class Main {
     constructor() {
         this._client = new Client();
+        this._auto_next_game = process.argv[2] === "-a";
     }
 
     async launch() {
@@ -15,7 +16,9 @@ class Main {
         while (true) {
             let is_my_turn = false;
             while (!is_my_turn) {
-                await this._client.next_game();
+                if (this._auto_next_game) {
+                    await this._client.next_game();
+                }
                 is_my_turn = await this._client.wait_for_turn();
                 await this._client.sleep(100);
             }

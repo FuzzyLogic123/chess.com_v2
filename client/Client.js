@@ -121,39 +121,41 @@ class Client {
 
         for (var rank = 8, _pj_a = 0; rank > _pj_a; rank += -1) {
             for (var file = 1, _pj_b = 9; file < _pj_b; file += 1) {
-                if (piece_list[i]["type"] === "k") {
-                    if (piece_list[i]["colour"] === "w" && piece_list[i]["location"] !== "51") {
-                        this._castling_rights = this._castling_rights.split("KQ").join("");
-                    } else {
-                        if (piece_list[i]["colour"] === "b" && piece_list[i]["location"] !== "58") {
-                            this._castling_rights = this._castling_rights.split("kq").join("");
-                        }
-                    }
-                }
 
-                if (piece_list[i]["type"] !== "r" || piece_list[i]["location"] !== file.toString() + rank.toString()) {
-                    if (rank === 1) {
-                        if (file === 1) {
-                            this._castling_rights = this._castling_rights.split("Q").join("");
-                        } else {
-                            if (file === 8) {
-                                this._castling_rights = this._castling_rights.split("K").join("");
 
-                            }
-                        }
-                    }
+                // if (piece_list[i]["type"] === "k") {
+                //     if (piece_list[i]["colour"] === "w" && piece_list[i]["location"] !== "51") {
+                //         this._castling_rights = this._castling_rights.split("KQ").join("");
+                //     } else {
+                //         if (piece_list[i]["colour"] === "b" && piece_list[i]["location"] !== "58") {
+                //             this._castling_rights = this._castling_rights.split("kq").join("");
+                //         }
+                //     }
+                // }
 
-                    if (rank === 8) {
-                        if (file === 1) {
-                            this._castling_rights = this._castling_rights.split("q").join("");
-                        } else {
-                            if (file === 8) {
-                                this._castling_rights = this._castling_rights.split("k").join("");
+                // if (piece_list[i]["type"] !== "r" || piece_list[i]["location"] !== file.toString() + rank.toString()) {
+                //     if (rank === 1) {
+                //         if (file === 1) {
+                //             this._castling_rights = this._castling_rights.split("Q").join("");
+                //         } else {
+                //             if (file === 8) {
+                //                 this._castling_rights = this._castling_rights.split("K").join("");
 
-                            }
-                        }
-                    }
-                }
+                //             }
+                //         }
+                //     }
+
+                //     if (rank === 8) {
+                //         if (file === 1) {
+                //             this._castling_rights = this._castling_rights.split("q").join("");
+                //         } else {
+                //             if (file === 8) {
+                //                 this._castling_rights = this._castling_rights.split("k").join("");
+
+                //             }
+                //         }
+                //     }
+                // }
 
                 if (piece_list[i]["location"] === file.toString() + rank.toString()) {
                     if (blank_squares_counter > 0) {
@@ -192,6 +194,13 @@ class Client {
         fen += " ";
         fen += this._player_colour;
 
+        const response = await axios.get(`http://127.0.0.1:8000/castlingRights`, {
+            params: {
+                fen: fen + ` ${this._castling_rights}` + " - 0 1",
+            }
+        });
+
+        this._castling_rights = response.data.castling_rights
 
         if (this._castling_rights) {
             fen += ` ${this._castling_rights}`;
@@ -202,7 +211,6 @@ class Client {
         fen += " - 0 1";
 
         return fen;
-
     }
 
     async _get_piece_list() {
@@ -344,7 +352,7 @@ class Client {
             return
         }
 
-        const PREMOVE_TIME_ACTIVATE = 60000
+        const PREMOVE_TIME_ACTIVATE = 5000
         if (time_remaining < PREMOVE_TIME_ACTIVATE) { // try premoving
             const response = await axios.get(`http://127.0.0.1:8000/premove`, {
                 params: {

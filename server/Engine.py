@@ -24,8 +24,6 @@ class Engine:
         actual_best_move, is_actual_best_move_capture = self.get_best_move(board, True)
 
         if is_actual_best_move_capture:
-            if actual_best_move != best_move:
-                chime.warning()
             best_move = actual_best_move
             is_capture = is_actual_best_move_capture
     
@@ -79,8 +77,7 @@ class Engine:
             board = chess.Board(fen)
             if not board.is_valid():
                 console.print("fen invalid", style="salmon1")
-            print("white", board.has_castling_rights(chess.WHITE))
-            print("black", board.has_castling_rights(chess.BLACK))
+                chime.error()
             return board
         except ValueError:
             return None
@@ -99,4 +96,19 @@ class Engine:
         print(moves)
 
         return moves
+
+    def get_castling_rights(self, fen):
+        castling_rights = ""
+        board = chess.Board(fen)
+
+        if board.has_kingside_castling_rights(chess.WHITE):
+            castling_rights += "K"
+        if board.has_queenside_castling_rights(chess.WHITE):
+            castling_rights += "Q"
+        if board.has_kingside_castling_rights(chess.BLACK):
+            castling_rights += "k"
+        if board.has_queenside_castling_rights(chess.BLACK):
+            castling_rights += "q"
+        
+        return castling_rights if castling_rights else "-"
 

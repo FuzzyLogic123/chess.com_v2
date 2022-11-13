@@ -18,3 +18,10 @@ def read_premove(fen: str):
     return {
         "premoves": moves
     }
+
+@app.get("/castlingRights")
+def read_castling_rights(fen: str):
+    castling_rights = engine.get_castling_rights(fen)
+    return {
+        "castling_rights": castling_rights
+    }
