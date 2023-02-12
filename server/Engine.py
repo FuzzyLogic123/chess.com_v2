@@ -8,13 +8,21 @@ import chime
 
 console = Console()
 
+import logging
+
+# Enable debug logging.
+logging.basicConfig(level=logging.DEBUG)
+
 class Engine:
     def __init__(self):
-        self.stockfish_path = "/usr/games/stockfish"
+        # self.stockfish_path = "/usr/games/stockfish"
+        self.stockfish_path = "../stockfish/stockfish-11-linux/src/stockfish"
+        self.engine = chess.engine.SimpleEngine.popen_uci(self.stockfish_path)
         self._move_counter = 0
-        self.dumb_level = 3
+        self.dumb_level = 4
         self.smart_level = 10
         self._BULLET_GAME_TIME = 60000
+        self.engine_parameters = { "Contempt": 100, "Slow Mover" : 10 }
 
     def get_move(self, fen, time_remaining):
         if self._BULLET_GAME_TIME - time_remaining < 1000: # if its a new game reset the move counter
@@ -25,18 +33,17 @@ class Engine:
             return
 
         best_move, is_capture = self.get_best_move(board)
+        # actual_best_move, is_actual_best_move_capture = self.get_best_move(board, True)
 
-        actual_best_move, is_actual_best_move_capture = self.get_best_move(board, True)
-
-        if is_actual_best_move_capture:
-            best_move = actual_best_move
-            is_capture = is_actual_best_move_capture
+        # if is_actual_best_move_capture:
+        #     best_move = actual_best_move
+        #     is_capture = is_actual_best_move_capture
     
-        if time_remaining < 5000: # if there is really low time start playing better
-            best_move = actual_best_move
+        # if time_remaining < 10000: # if there is really low time start playing better
+        #     best_move = actual_best_move
 
-        delay = self.get_delay(time_remaining, is_capture)
-        time.sleep(delay)
+        # delay = self.get_delay(time_remaining, is_capture)
+        # time.sleep(delay)
 
         self._move_counter += 1
         return best_move
@@ -44,17 +51,14 @@ class Engine:
     def get_best_move(self, board, is_smart=False):
         is_capture = False
         if is_smart:
-            engine = chess.engine.SimpleEngine.popen_uci(self.stockfish_path)
-            engine.configure({"Skill Level": self.smart_level})
-            result = engine.play(board, chess.engine.Limit(depth=10))
-            best_move = result.move
-            engine.close()
+            self.engine.configure({"Skill Level": self.smart_level } | self.engine_parameters )
+            # engine.close()
         else:
-            engine = chess.engine.SimpleEngine.popen_uci(self.stockfish_path)
-            engine.configure({"Skill Level": self.dumb_level})
-            result = engine.play(board, chess.engine.Limit(depth=10))
-            best_move = result.move
-            engine.close()
+            self.engine.configure({"Skill Level": self.dumb_level }| self.engine_parameters )
+            # engine.close()
+
+        result = self.engine.play(board, chess.engine.Limit(time=0.01))
+        best_move = result.move
 
         if best_move:
             best_move_uci = best_move.uci()
@@ -89,7 +93,7 @@ class Engine:
             if not board.is_valid():
                 console.print("fen invalid", style="salmon1")
                 console.print(fen)
-                chime.error()
+                # chime.error()
                 return None
             return board
         except ValueError:

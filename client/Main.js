@@ -21,7 +21,7 @@ class Main {
                     matchmaking = await this._client.next_game();
                 }
                 is_my_turn = await this._client.wait_for_turn();
-                await this._client.sleep(100);
+                await this._client.sleep(10);
             }
 
             if (matchmaking) {
@@ -29,7 +29,9 @@ class Main {
             }
 
             await this._client.updatePlayerColour();
+            console.time("entire move")
             await this._client.playMove();
+            console.timeEnd("entire move");
 
             await this._client.wait_for_opponents_turn();
         }
